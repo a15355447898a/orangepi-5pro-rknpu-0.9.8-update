@@ -1,112 +1,105 @@
-# Updating RKNPU Driver 0.9.8 on Orange Pi 5B (or similar models)
+# 在 Orange Pi 5PRO 上更新 RKNPU 驱动程序 0.9.8
 
+本指南提供在 Orange Pi 5PRO 上将 RKNPU 驱动程序更新至 0.9.8 版本的详细说明，该设备运行 Linux 和 Linux 6.1.43-rockchip-rk3588 内核。升级 RKNPU 驱动程序对于成功运行 RKLLM 多模态模型至关重要。
 
-This guide provides detailed instructions to update the RKNPU driver to version 0.9.8 on an Orange Pi 5B  (or similar models) running Jammy 1.0.8 with the Linux 6.1.43-rockchip-rk3588 kernel. Upgrading the RKNPU driver is essential for successfully running RKLLM multimodal models. You can follow this guide for other models of Orange Pi 5 boards with official Orange Pi ubuntu images.
+**您可以直接克隆此存储库并直接跳转到步骤 9**，或者继续在您的板上构建内核。
 
+> 更新日志: 
+>
+> * 2025/11/1: fork了原仓库,构建了Orange Pi 5PRO的内核,并且开启了`CONFIG_SECURITY_LANDLOCK`(codex需要这个)
 
-**You can Clone this repository and jump to step 9 directly** or continue building the kernel on your board.
+# 构建带 RKNPU 驱动程序 0.9.8 的 Linux 6.1.43 rk3588 内核
 
+## 先决条件
 
-You can download the working rkllm models from below HF links for running the [examples of RKNN LLM repository](https://github.com/airockchip/rknn-llm/tree/main/examples):
-1. [Qwen2-VL-2B-rkllm](https://huggingface.co/3ib0n/Qwen2-VL-2B-rkllm)
-2. [Deepseek R1 1.5B 7B and Qwen2.5 3B](https://huggingface.co/VRxiaojie)
+- **操作系统**：debian系的Linux
+- **内核版本**：Linux 6.1.43-rockchip-rk3588
+- **磁盘空间**：至少 20 GB 可用空间
+- **网络访问**：确保开发板具有互联网访问权限，以克隆存储库和下载必要的软件包。
 
+## 步骤 1：验证当前的 NPU 驱动程序版本
 
-
-
-# Build Linux 6.1.43 rk3588 Kernel with RKNPU Driver 0.9.8
-## Prerequisites
-
-- **Operating System**: [Ubuntu 22.04 Jammy 6.1.43](https://drive.google.com/drive/folders/1xhP1KeW_hL5Ka4nDuwBa8N40U8BN0AC9)
-- **Kernel Version**: Linux 6.1.43-rockchip-rk3588
-- **Disk Space**: At least 20 GB of free space
-- **Network Access**: Ensure the development board has internet access to clone repositories and download necessary packages.
-
-
-## Step 1: Verify Current NPU Driver Version
-
-Before proceeding, check the current version of the RKNPU driver:
+在继续之前，请检查 RKNPU 驱动程序的当前版本：
 
 ```bash
 sudo cat /sys/kernel/debug/rknpu/version
 ```
 
-If the output indicates a version lower than 0.9.8, proceed with the following steps to upgrade the driver.
+如果输出显示的版本低于 0.9.8，请继续执行以下步骤升级驱动程序。
 
-## Step 2: Install Required Dependencies
+## 步骤 2：安装所需的依赖项
 
-Ensure that your system has the necessary packages installed:
+确保您的系统已安装必要的软件包：
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y git cmake
 ```
 
-## Step 3: Clone the Orange Pi Build Repository
+## 步骤 3：克隆 Orange Pi 构建存储库
 
-The Orange Pi Build repository is based on the Armbian build framework and is used to compile the Linux kernel for Orange Pi boards. Clone the repository:
+Orange Pi 构建存储库基于 Armbian 构建框架，用于为 Orange Pi 板编译 Linux 内核。克隆存储库：
 
 ```bash
 cd ~
 git clone https://github.com/orangepi-xunlong/orangepi-build.git -b next
 ```
 
+## 步骤 4：下载 Linux 6.1 内核源代码
 
-## Step 4: Download the Linux 6.1 Kernel Source
-
-Create a directory to store the kernel source and navigate into it:
+创建一个目录来存储内核源代码并进入该目录：
 
 ```bash
 cd orangepi-build
 mkdir kernel && cd kernel
 ```
 
-Clone the kernel source code:
+克隆内核源代码：
 
 ```bash
 git clone https://github.com/orangepi-xunlong/linux-orangepi.git -b orange-pi-6.1-rk35xx
 ```
 
-Rename the directory for consistency:
+为保持一致性重命名目录：
 
 ```bash
 mv linux-orangepi/ orange-pi-6.1-rk35xx
 ```
 
-## Step 5: Download and Extract the RKNPU Driver
+## 步骤 5：下载并解压 RKNPU 驱动程序
 
-Obtain the RKNPU driver version 0.9.8 from the official repository:
+从官方存储库获取 RKNPU 驱动程序 0.9.8 版本：
 
 ```bash
 cd ~/orangepi-build
 git clone https://github.com/airockchip/rknn-llm.git
 ```
 
-Unzip the driver:
+解压驱动程序：
 
 ```bash
 tar -xvf /rknn-llm/rknpu-driver/rknpu_driver_0.9.8_20241009.tar.bz2
 ```
 
-Copy the extracted driver files to the kernel source:
+将解压后的驱动程序文件复制到内核源代码中：
 
 ```bash
 cp -r drivers/ kernel/orange-pi-6.1-rk35xx/
 ```
 
-## Step 6: Modify Kernel Source Files
+## 步骤 6：修改内核源代码文件
 
-To ensure compatibility and avoid compilation errors, make the following modifications:
+为确保兼容性并避免编译错误，请进行以下修改：
 
-1. **Modify kernel/include/linux/mm.h file**:
+1. **修改 kernel/include/linux/mm.h 文件**：
 
-   Edit the file:
+   编辑文件：
 
    ```bash
    sudo nano kernel/orange-pi-6.1-rk35xx/include/linux/mm.h
    ```
 
-   Add the following code at an appropriate location:
+   在适当的位置添加以下代码：
 
    ```c
    static inline void vm_flags_set(struct vm_area_struct *vma, vm_flags_t flags)
@@ -118,101 +111,93 @@ To ensure compatibility and avoid compilation errors, make the following modific
        vma->vm_flags &= ~flags;
    }
    ```
-![image](https://github.com/user-attachments/assets/adcb44bc-15b9-41bd-bd53-72273c06d021)
+![图片](https://github.com/user-attachments/assets/adcb44bc-15b9-41bd-bd53-72273c06d021)
 
-1. **Modify rknpu\_devfreq.c file:**
+2. **修改 rknpu_devfreq.c 文件：**
 
-   Edit the file:
+   编辑文件：
 
    ```bash
    sudo nano kernel/orange-pi-6.1-rk35xx/drivers/rknpu/rknpu_devfreq.c
    ```
 
-   Comment out this sentence on line 242 .set\_soc\_info = rockchip\_opp\_set\_low\_length,
+   注释掉第 242 行的 .set_soc_info = rockchip_opp_set_low_length,
 
    ```c
    //.set_soc_info = rockchip_opp_set_low_length,
    ```
-![image](https://github.com/user-attachments/assets/26e01e59-d2b1-4f29-b997-f171b998ec8f)
+![图片](https://github.com/user-attachments/assets/26e01e59-d2b1-4f29-b997-f171b998ec8f)
 
-## Step 7: Disable Source Synchronization
+## 步骤 7：禁用源代码同步
 
-Because we manually overwrote drivers to the kernel/orange-pi-6.10-rk35xx directory before, if we run the compilation directly now, the script will check the inconsistency with the cloud source code, resulting in the problem of re-pulling the code to overwrite. Therefore, the source code synchronization function should be disabled in the configuration file.
+因为我们之前手动将驱动程序覆盖到 kernel/orange-pi-6.10-rk35xx 目录，如果现在直接运行编译，脚本会检查与云端源代码的不一致，导致重新拉取代码覆盖的问题。因此，应在配置文件中禁用源代码同步功能。
 
+首先，运行一次 build.sh 脚本进行初始化：
 
-
-First, run the build.sh script once to initialize.:
-
-1. Run the build script to initialize:
+1. 运行构建脚本进行初始化：
    ```bash
    sudo ./build.sh
    ```
-   Wait for a moment, and when you see the interface that asks us to make a selection, use the → arrow key and the Enter key on the keyboard to exit the menu.
+   稍等片刻，当看到要求我们进行选择的界面时，使用键盘上的 → 箭头键和 Enter 键退出菜单。
 
-   Check the current directory again and find an additional userpatches folder, which contains configuration files.&#x20;
-2. Update the config-default.conf file:
+   再次检查当前目录，发现多了一个 userpatches 文件夹，其中包含配置文件。
+2. 更新 config-default.conf 文件：
    ```bash
    sudo nano userpatches/config-default.conf
    ```
-3. Find and set IGNORE_UPDATES to yes:
+3. 找到并将 IGNORE_UPDATES 设置为 yes：
    ```bash
    IGNORE_UPDATES="yes"
    ```
 
-## Step 8: Compile the Linux Kernel
+## 步骤 8：编译 Linux 内核
 
-Start the build process:
+启动构建过程：
 
 ```bash
-sudo ./build.sh
+sudo ./build.sh docker
+./build.sh
 ```
 
-Select the appropriate options for your board and kernel version when prompted.
+在提示时为您的板和内核版本选择适当的选项。
 
-![image](https://github.com/user-attachments/assets/c7730fc3-59ce-404b-ad18-e95c2e2812e7)
+![图片](https://github.com/user-attachments/assets/c7730fc3-59ce-404b-ad18-e95c2e2812e7)
 
-![image](https://github.com/user-attachments/assets/87a5024e-0561-41df-9f16-231dda9f56db)
+![图片](https://github.com/user-attachments/assets/87a5024e-0561-41df-9f16-231dda9f56db)
 
-![image](https://github.com/user-attachments/assets/fb142587-3888-4964-bdd3-e5a3b051e725)
+![图片](https://github.com/user-attachments/assets/fb142587-3888-4964-bdd3-e5a3b051e725)
 
-![image](https://github.com/user-attachments/assets/f078d22f-886a-40b0-9bc6-8b8773c8ac00)
+![图片](https://github.com/user-attachments/assets/f078d22f-886a-40b0-9bc6-8b8773c8ac00)
 
-After successful build, you will see like below messages (Note: the first time build might require nearly 40 minutes!)
-![image](https://github.com/user-attachments/assets/addcd887-8dda-4b7c-a2fb-f4ddd6c011f5)
+成功构建后，您将看到类似以下的消息（注意：首次构建可能需要近 40 分钟！）
+![图片](https://github.com/user-attachments/assets/addcd887-8dda-4b7c-a2fb-f4ddd6c011f5)
 
-Check the file 
-![image](https://github.com/user-attachments/assets/f32ef375-33cd-4c30-8af0-e86cdefe0e13)
+检查文件
+![图片](https://github.com/user-attachments/assets/f32ef375-33cd-4c30-8af0-e86cdefe0e13)
 
-## Step 9: Install the New Kernel
+## 步骤 9：安装新内核
 
-Need to install only the **linux-image-current-rockchip-rk3588_1.0.8_arm64.deb** package:
+仅需安装 **linux-image-current-rockchip-rk3588_1.0.6_arm64.deb** 软件包：
 
 ```bash
 sudo apt purge -y linux-image-current-rockchip-rk3588
-sudo dpkg -i output/debs/linux-image-current-rockchip-rk3588_1.0.8_arm64.deb
+sudo dpkg -i output/debs/linux-image-current-rockchip-rk3588_1.0.6_arm64.deb
 ```
 
-## Step 10: Verify the Updated NPU Driver Version
+## 步骤 10：验证更新后的 NPU 驱动程序版本
 
-Reboot the system:
+重新启动系统：
 
 ```bash
 sudo reboot
 ```
 
-After rebooting, verify the NPU driver version:
+重新启动后，验证 NPU 驱动程序版本：
 
 ```bash
 sudo cat /sys/kernel/debug/rknpu/version
 ```
-The output should now indicate version 0.9.8.
-![image](https://github.com/user-attachments/assets/80a35e0a-8389-4800-bf2d-c27547155f0c)
+输出现在应显示版本 0.9.8。
+![图片](https://github.com/user-attachments/assets/80a35e0a-8389-4800-bf2d-c27547155f0c)
 
-## References
-
-- [RKLLM Deployment Guide](https://wiki.vrxiaojie.top/Deepseek-R1-RK3588-OrangePi5/RKLLM部署语言大模型教程/（可选）升级RKNPU驱动.html)
-- [RKN LLM](https://github.com/airockchip/rknn-llm)
-- [Easy installation of RKNN and RKLLM ](https://github.com/Pelochus/ezrknpu) Please use the latest RKLLM 1.1.4 version from RKNN LLM git repository
-
-By following these steps, you should have successfully updated the RKNPU driver to version 0.9.8, enabling the deployment of RKLLM multimodal models on your Orange Pi 5B.
-
+通过执行这些步骤，您应该已成功将 RKNPU 驱动程序更新到 0.9.8 版本，从而可以在您的 Orange Pi 5PRO 上部署 RKLLM 多模态模型。
